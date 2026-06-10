@@ -82,6 +82,14 @@ export default function Home() {
     <div className="text-gray-400 text-sm">
       {job.status}
     </div>
+    <button
+  onClick={() => {
+    setJobs(jobs.filter((_, i) => i !== index));
+  }}
+  className="mt-3 bg-red-600 text-white px-3 py-1 rounded-lg"
+>
+  Delete
+</button>
   </div>
 ))}
         </div>
