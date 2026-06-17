@@ -1,24 +1,36 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Navbar from "@/components/Navbar";
 import FeatureCard from "@/components/FeatureCard";
-
+type Job = {
+  company: string;
+  status: string;
+  };
 export default function Home() {
   const [count, setCount] = useState(0);
   const [jobName, setJobName] = useState("");
 
-
-  type Job = {
-  company: string;
-  status: string;
-  };
+  const [status, setStatus] = useState("Applied");
 
   const [jobs, setJobs] = useState<Job[]>([]);
   
 
   const features = ["Applications", "Referrals", "Interviews", "Offers", "Resume Reviews"];
+  useEffect(() => {
+  const savedJobs = localStorage.getItem("jobs");
+  if (savedJobs) {
+    setJobs(JSON.parse(savedJobs));
+  }
+}, []);
 
+
+  // Save jobs whenever jobs changes
+  useEffect(() => {
+    localStorage.setItem("jobs", JSON.stringify(jobs));
+  }, [jobs]);
+
+  
   return (
     <main className="min-h-screen bg-black text-white">
       <section className="max-w-6xl mx-auto px-6 py-20 text-center">
@@ -46,7 +58,16 @@ export default function Home() {
             placeholder="Enter company name"
             className="border border-gray-600 bg-gray-900 text-white placeholder-gray-400 rounded-lg px-4 py-2"
           />
-
+        <select
+        value={status}
+        onChange={(e) => setStatus(e.target.value)}
+        className="border border-gray-600 bg-gray-900 text-white rounded-lg px-4 py-2"
+>
+        <option>Applied</option>
+        <option>Interview</option>
+        <option>Rejected</option>
+        <option>Offer</option>
+      </select>
           <button
             onClick={() => {
   if (jobName.trim() !== "") {
@@ -54,13 +75,13 @@ export default function Home() {
       ...jobs,
       {
         company: jobName,
-        status: "Applied",
+        status: status,
       },
     ]);
 
     setJobName("");
   }
-}}
+}}  
             className="bg-white text-black px-4 py-2 rounded-lg"
           >
             Add Job
