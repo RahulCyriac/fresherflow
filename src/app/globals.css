@@ -3,12 +3,24 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
-}@theme inline {
+}
+@theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --animate-loader: loader 1.5s infinite linear;
+
+  @keyframes loader {
+    0% {
+      transform: translateX(-100%);
+    }
+    100% {
+      transform: translateX(300%);
+    }
+  }
 }
+
 
 @media (prefers-color-scheme: dark) {
   :root {

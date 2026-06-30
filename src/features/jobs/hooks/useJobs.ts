@@ -1,77 +1,124 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { loadJobs, saveJobs } from "@/features/jobs/services/jobStorage";
-import type { Job } from "@/features/jobs/types/job";
-import type { JobStatus, JobPriority } from "@/features/jobs/types/job";
+import type { Job, JobStatus, JobPriority } from "@/features/jobs/types/job";
+import {
+  getJobsAction,
+  createJobAction,
+  updateJobAction,
+  deleteJobAction,
+  syncLocalJobsAction,
+} from "@/features/jobs/actions/jobActions";
 
 type UseJobsResult = {
   jobs: Job[];
+  isLoading: boolean;
   addJob: (
     company: string,
     status: JobStatus,
     priority?: JobPriority,
     tags?: string[],
     notes?: string
-  ) => void;
-  updateJob: (updatedJob: Job) => void;
-  deleteJob: (jobId: string) => void;
+  ) => Promise<void>;
+  updateJob: (updatedJob: Job) => Promise<void>;
+  deleteJob: (jobId: string) => Promise<void>;
+  syncLocalData: (localJobs: Job[]) => Promise<void>;
 };
 
 export function useJobs(): UseJobsResult {
   const [jobs, setJobs] = useState<Job[]>([]);
-  const [hasLoadedJobs, setHasLoadedJobs] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    queueMicrotask(() => {
-      setJobs(loadJobs());
-      setHasLoadedJobs(true);
-    });
+    let isMounted = true;
+    getJobsAction()
+      .then((loadedJobs) => {
+        if (isMounted) {
+          setJobs(loadedJobs);
+          setIsLoading(false);
+        }
+      })
+      .catch((err) => {
+        console.error("Failed to load jobs", err);
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
-  useEffect(() => {
-    if (!hasLoadedJobs) {
-      return;
-    }
-
-    saveJobs(jobs);
-  }, [hasLoadedJobs, jobs]);
-
-  function addJob(
+  async function addJob(
     company: string,
     status: JobStatus,
     priority: JobPriority = "Medium",
     tags: string[] = [],
     notes: string = ""
   ) {
-    const job: Job = {
-      id: crypto.randomUUID(),
-      company,
-      status,
-      priority,
-      tags,
-      notes,
-      createdAt: new Date().toISOString(),
-    };
-
-    setJobs((currentJobs) => [...currentJobs, job]);
+    setIsLoading(true);
+    try {
+      const newJob = await createJobAction(company, status, priority, tags, notes);
+      setJobs((currentJobs) => [newJob, ...currentJobs]);
+    } catch (err) {
+      console.error("Failed to add job", err);
+    } finally {
+      setIsLoading(false);
+    }
   }
 
-  function updateJob(updatedJob: Job) {
-    setJobs((currentJobs) =>
-      currentJobs.map((job) => (job.id === updatedJob.id ? updatedJob : job))
-    );
+  async function updateJob(updatedJob: Job) {
+    setIsLoading(true);
+    try {
+      const savedJob = await updateJobAction(updatedJob);
+      setJobs((currentJobs) =>
+        currentJobs.map((job) => (job.id === savedJob.id ? savedJob : job))
+      );
+    } catch (err) {
+      console.error("Failed to update job", err);
+    } finally {
+      setIsLoading(false);
+    }
   }
 
-  function deleteJob(jobId: string) {
-    setJobs((currentJobs) => currentJobs.filter((job) => job.id !== jobId));
+  async function deleteJob(jobId: string) {
+    setIsLoading(true);
+    try {
+      await deleteJobAction(jobId);
+      setJobs((currentJobs) => currentJobs.filter((job) => job.id !== jobId));
+    } catch (err) {
+      console.error("Failed to delete job", err);
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function syncLocalData(localJobs: Job[]) {
+    if (localJobs.length === 0) return;
+    setIsLoading(true);
+    try {
+      const syncedJobs = await syncLocalJobsAction(localJobs);
+      setJobs((currentJobs) => {
+        const serverJobIds = new Set(syncedJobs.map((j) => j.id));
+        const filteredCurrent = currentJobs.filter((j) => !serverJobIds.has(j.id));
+        return [...syncedJobs, ...filteredCurrent];
+      });
+      localStorage.removeItem("jobs");
+    } catch (err) {
+      console.error("Failed to sync local data", err);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
   }
 
   return {
     jobs,
+    isLoading,
     addJob,
     updateJob,
     deleteJob,
+    syncLocalData,
   };
 }
-
