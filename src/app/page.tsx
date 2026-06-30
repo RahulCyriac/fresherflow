@@ -1,146 +1,169 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import Navbar from "@/components/Navbar";
-import FeatureCard from "@/components/FeatureCard";
-type Job = {
-  company: string;
-  status: string;
-  };
+import { useState } from "react";
+import Navbar from "@/components/layout/Navbar";
+import StatsDashboard from "@/features/jobs/components/StatsDashboard";
+import JobFilters from "@/features/jobs/components/JobFilters";
+import JobList from "@/features/jobs/components/JobList";
+import JobForm from "@/features/jobs/components/JobForm";
+import JobDetailModal from "@/features/jobs/components/JobDetailModal";
+import { useJobs } from "@/features/jobs/hooks/useJobs";
+import type { Job } from "@/features/jobs/types/job";
+
 export default function Home() {
-  const [count, setCount] = useState(0);
-  const [jobName, setJobName] = useState("");
+  const { jobs, addJob, updateJob, deleteJob } = useJobs();
 
-  const [status, setStatus] = useState("Applied");
+  // Filters state
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [priorityFilter, setPriorityFilter] = useState("ALL");
+  const [dateFilter, setDateFilter] = useState("ALL");
+  const [sortBy, setSortBy] = useState("NEWEST");
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
 
-  const [jobs, setJobs] = useState<Job[]>([]);
-  
+  // Modals state
+  const [isAddOpen, setIsAddOpen] = useState(false);
+  const [editingJob, setEditingJob] = useState<Job | null>(null);
 
-  const features = ["Applications", "Referrals", "Interviews", "Offers", "Resume Reviews"];
-  useEffect(() => {
-  const savedJobs = localStorage.getItem("jobs");
-  if (savedJobs) {
-    setJobs(JSON.parse(savedJobs));
-  }
-}, []);
+  // Toggle tag filter helper
+  const handleTagToggle = (tag: string) => {
+    setSelectedTags((prev) =>
+      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
+    );
+  };
 
+  // Filter & Sort logic
+  const filteredJobs = jobs.filter((job) => {
+    // 1. Search Query (Company name)
+    const matchesSearch = job.company.toLowerCase().includes(search.toLowerCase());
 
-  // Save jobs whenever jobs changes
-  useEffect(() => {
-    localStorage.setItem("jobs", JSON.stringify(jobs));
-  }, [jobs]);
+    // 2. Status Filter
+    const matchesStatus = statusFilter === "ALL" || job.status === statusFilter;
 
-  
+    // 3. Priority Filter
+    const matchesPriority = priorityFilter === "ALL" || job.priority === priorityFilter;
+
+    // 4. Date Applied Filter
+    let matchesDate = true;
+    if (dateFilter !== "ALL") {
+      const createdAtDate = new Date(job.createdAt);
+      const now = new Date();
+      const diffTime = now.getTime() - createdAtDate.getTime();
+      const diffDays = diffTime / (1000 * 60 * 60 * 24);
+
+      if (dateFilter === "TODAY") {
+        // Match today calendar day
+        matchesDate =
+          createdAtDate.getDate() === now.getDate() &&
+          createdAtDate.getMonth() === now.getMonth() &&
+          createdAtDate.getFullYear() === now.getFullYear();
+      } else if (dateFilter === "PAST_WEEK") {
+        matchesDate = diffDays <= 7;
+      } else if (dateFilter === "PAST_MONTH") {
+        matchesDate = diffDays <= 30;
+      }
+    }
+
+    // 5. Tags Filter (match all selected filters)
+    const matchesTags =
+      selectedTags.length === 0 ||
+      selectedTags.every((tag) => job.tags?.includes(tag));
+
+    return matchesSearch && matchesStatus && matchesPriority && matchesDate && matchesTags;
+  });
+
+  // Sort logic
+  const sortedJobs = [...filteredJobs].sort((a, b) => {
+    if (sortBy === "COMPANY_AZ") {
+      return a.company.localeCompare(b.company);
+    }
+    if (sortBy === "COMPANY_ZA") {
+      return b.company.localeCompare(a.company);
+    }
+    if (sortBy === "NEWEST") {
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    }
+    if (sortBy === "OLDEST") {
+      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+    }
+    return 0;
+  });
+
   return (
-    <main className="min-h-screen bg-black text-white">
-      <section className="max-w-6xl mx-auto px-6 py-20 text-center">
-        <Navbar />
+    <div className="min-h-screen bg-[#030303] text-zinc-100 flex flex-col font-sans selection:bg-zinc-800 selection:text-white">
+      {/* Top Navigation */}
+      <Navbar />
 
-        <button
-          onClick={() => setCount(count + 1)}
-          className="bg-white text-black px-4 py-2 rounded-lg mt-6"
-        >
-          Clicked {count} times
-        </button>
+      {/* Main Container */}
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+        {/* Subtle background glow effect (Vercel Style) */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-7xl h-[300px] bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-zinc-900/40 via-transparent to-transparent pointer-events-none -z-10" />
 
-        <button
-          onClick={() => setCount(0)}
-          className="bg-white text-black px-4 py-2 rounded-lg mt-4 ml-4"
-        >
-          Reset to 0 - {count}
-        </button>
-
-        <div className="mt-8 flex justify-center gap-4">
-          <input
-            type="text"
-            value={jobName}
-            onChange={(e) => setJobName(e.target.value)}
-            placeholder="Enter company name"
-            className="border border-gray-600 bg-gray-900 text-white placeholder-gray-400 rounded-lg px-4 py-2"
-          />
-        <select
-        value={status}
-        onChange={(e) => setStatus(e.target.value)}
-        className="border border-gray-600 bg-gray-900 text-white rounded-lg px-4 py-2"
->
-        <option>Applied</option>
-        <option>Interview</option>
-        <option>Rejected</option>
-        <option>Offer</option>
-      </select>
-          <button
-            onClick={() => {
-  if (jobName.trim() !== "") {
-    setJobs([
-      ...jobs,
-      {
-        company: jobName,
-        status: status,
-      },
-    ]);
-
-    setJobName("");
-  }
-}}  
-            className="bg-white text-black px-4 py-2 rounded-lg"
-          >
-            Add Job
-          </button>
-        </div>
-
-        <div className="mt-8">
-          <h2 className="text-2xl font-semibold mb-4">My Applications</h2>
-
-          {jobs.map((job, index) => (
-  <div
-    key={index}
-    className="border border-gray-700 bg-gray-900 text-white rounded-lg p-3 mb-2"
-  >
-    <div className="font-semibold">
-      {job.company}
-    </div>
-
-    <div className="text-gray-400 text-sm">
-      {job.status}
-    </div>
-    <button
-  onClick={() => {
-    setJobs(jobs.filter((_, i) => i !== index));
-  }}
-  className="mt-3 bg-red-600 text-white px-3 py-1 rounded-lg"
->
-  Delete
-</button>
-  </div>
-))}
-        </div>
-
-        <p className="mt-6 text-xl text-gray-300">
-          Organize your job search, track applications, manage referrals, and land your first tech role.
-        </p>
-
-        <div className="mt-8 flex justify-center gap-4">
-          <button className="bg-white text-black px-6 py-3 rounded-lg">
-            Get Started
-          </button>
-
-          <button className="border border-gray-500 text-white px-6 py-3 rounded-lg">
-            Learn More
-          </button>
-        </div>
-      </section>
-
-      <section className="max-w-4xl mx-auto px-6 pb-20">
-        <div className="bg-zinc-900 text-white rounded-xl shadow p-6">
-          <h2 className="text-2xl font-semibold">Track Everything</h2>
-
-          <div className="grid md:grid-cols-4 gap-4 mt-6">
-            {features.map((feature) => (
-              <FeatureCard key={feature} title={feature} />
-            ))}
+        {/* Dashboard Header */}
+        <section className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-zinc-900 pb-6">
+          <div>
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+              Applications Tracker
+            </h2>
+            <p className="text-sm text-zinc-400 mt-1">
+              Organize your job search, log interview preparation notes, and monitor your pipelines.
+            </p>
           </div>
-        </div>
-      </section>
-    </main>
+          <div>
+            <button
+              onClick={() => setIsAddOpen(true)}
+              className="w-full sm:w-auto bg-zinc-100 text-zinc-950 hover:bg-zinc-200 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all shadow-sm active:scale-[0.98] cursor-pointer"
+            >
+              Add Application
+            </button>
+          </div>
+        </section>
+
+        {/* Statistics Section */}
+        <StatsDashboard jobs={jobs} />
+
+        {/* Filters and List Grid */}
+        <section className="space-y-6">
+          <JobFilters
+            search={search}
+            onSearchChange={setSearch}
+            statusFilter={statusFilter}
+            onStatusFilterChange={setStatusFilter}
+            priorityFilter={priorityFilter}
+            onPriorityFilterChange={setPriorityFilter}
+            dateFilter={dateFilter}
+            onDateFilterChange={setDateFilter}
+            sortBy={sortBy}
+            onSortByChange={setSortBy}
+            selectedTags={selectedTags}
+            onTagToggle={handleTagToggle}
+          />
+
+          <JobList jobs={sortedJobs} onJobClick={setEditingJob} />
+        </section>
+      </main>
+
+      {/* Footer info */}
+      <footer className="border-t border-zinc-900 bg-zinc-950/20 py-8 text-center text-xs text-zinc-600">
+        <p>© {new Date().getFullYear()} FresherFlow. Built for students and graduates.</p>
+      </footer>
+
+      {/* Add Job Modal Dialog */}
+      <JobForm
+        isOpen={isAddOpen}
+        onClose={() => setIsAddOpen(false)}
+        onAddJob={addJob}
+      />
+
+      {/* Edit Job Modal Dialog */}
+      <JobDetailModal
+        job={editingJob}
+        isOpen={editingJob !== null}
+        onClose={() => setEditingJob(null)}
+        onSave={updateJob}
+        onDelete={deleteJob}
+      />
+    </div>
   );
 }
+
